@@ -40,6 +40,83 @@ Open `http://SERVER:8080`.
 ## Safe evaluation
 Leave `SIMULATION_MODE=true`. Add test servers in the UI; Redfish calls are simulated. Define an approved baseline, run a compliance scan, select servers, then test a rolling update.
 
+## Onboarding Dell servers
+
+### How FleetOps talks to servers
+FleetOps is **agentless and IP-based**. It connects to each server's **iDRAC** (not the host OS) using the **DMTF Redfish REST API over HTTPS (TCP 443)**, authenticated with an iDRAC username and password.
+
+| Protocol | Used? | Notes |
+|---|---|---|
+| Redfish over HTTPS (443) | **Yes** | All inventory, health, compliance and firmware update calls |
+| SNMP | No | Not used for discovery, polling or traps |
+| SSH / RACADM | No | Not used |
+| OS agent / OpenManage Server Administrator | No | Nothing is installed on the server or its OS |
+
+Redfish endpoints used:
+- `/redfish/v1/Systems/System.Embedded.1`: model, service tag, BIOS version, health, power state
+- `/redfish/v1/Managers/iDRAC.Embedded.1`: iDRAC firmware version
+- `/redfish/v1/UpdateService/FirmwareInventory`: per-component firmware versions
+- `/redfish/v1/UpdateService/Actions/UpdateService.SimpleUpdate`: firmware install (iDRAC pulls the package from an HTTPS URI)
+- `/redfish/v1/TaskService/Tasks/...`: update task status
+
+### Prerequisites per server
+1. **iDRAC network configured:** the iDRAC dedicated or shared LOM port has a static IP (or a stable DHCP reservation/DNS name) on your management network.
+2. **Redfish enabled:** it is on by default on iDRAC9 and on iDRAC8 2.40.40.40 and later. Check it under *iDRAC Settings → Services → Redfish*. Older iDRAC7/8 firmware must be upgraded first.
+3. **Service account:** create a dedicated local iDRAC user (or directory account) for FleetOps.
+   - *Read Only* is enough for scans, firmware inventory, compliance and preflight.
+   - *Administrator* (or an Operator role with Configure privileges) is required to run firmware updates.
+4. **Network access:**
+   - FleetOps backend → iDRAC on **TCP 443**.
+   - iDRAC → your firmware repository on **TCP 443**, needed only for updates, because the iDRAC downloads the package itself.
+5. **TLS (recommended):** install trusted certificates on each iDRAC and set `VERIFY_TLS=true`. With the default `VERIFY_TLS=false`, self-signed iDRAC certificates are accepted.
+
+Quick connectivity test from the FleetOps host:
+```bash
+curl -k -u <idrac_user>:<password> https://<idrac_ip>/redfish/v1/Systems/System.Embedded.1
+```
+If this returns JSON, FleetOps can manage the server.
+
+### Adding servers
+In the UI, choose **Add server** and enter a display name, the **iDRAC IP or hostname**, and the iDRAC username and password. The password is stored encrypted with a key derived from `SECRET_KEY`. Changing `SECRET_KEY` later makes stored credentials unreadable, so you would need to re-enter them.
+
+Or use the API:
+```bash
+curl -X POST http://SERVER:8080/api/servers \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"prd-db-01","address":"10.10.20.11","username":"fleetops","password":"********"}'
+```
+Then run **Scan** (`POST /api/servers/{id}/scan`) to pull the model, service tag, BIOS/iDRAC versions, health and power state, and assign the server to a group.
+
+> FleetOps has no automatic network discovery (no subnet sweep, SNMP or SLP). Each iDRAC is added by address. To onboard many servers, loop over a CSV and call `POST /api/servers`.
+
+With `SIMULATION_MODE=true` no real iDRAC is contacted. Set it to `false` to onboard real hardware.
+
+## Compliance and Dell update information
+
+### Where the data comes from
+- **Installed versions** come **live from each iDRAC** via Redfish `FirmwareInventory` whenever you run a compliance scan.
+- **Target versions** come from **approved baselines that you define** in FleetOps (per PowerEdge model + component: target version + HTTPS package URI).
+
+**FleetOps does not connect to Dell support (dell.com, the Dell catalog, TechDirect or SupportAssist).** It does not download catalogs, check warranty or fetch packages from Dell. This is intentional: an administrator decides which Dell release is approved before anything can be installed (see *Firmware baseline workflow* below).
+
+### Getting update information from Dell
+Use one of these Dell sources to decide what to approve:
+1. **Dell Support site:** enter the server's **service tag** (shown in FleetOps after a scan) at dell.com/support → *Drivers & Downloads* to see the latest BIOS, iDRAC, PERC, NIC and other packages, with criticality and release notes.
+2. **Dell Repository Manager (DRM):** build a repository for your PowerEdge models from the Dell enterprise catalog (`https://downloads.dell.com/catalog/Catalog.xml.gz`), then host the resulting Dell Update Packages (DUPs) on your internal HTTPS server.
+3. **Dell Security Advisories (DSAs):** watch them to prioritize security-critical BIOS and iDRAC releases.
+
+### Compliance workflow
+1. Download the approved Dell DUPs (`.EXE` packages for PowerEdge) and host them on an internal HTTPS repository that every iDRAC can reach.
+2. In **Baselines**, add an entry per model/component:
+   - **Model:** exactly as reported by the scan, for example `PowerEdge R750`.
+   - **Component:** exactly as shown in the server's firmware inventory/compliance results, for example `BIOS`.
+   - **Target version:** the Dell release version, for example `1.13.2`.
+   - **Image URI:** `https://repo.example.local/dell/BIOS_XXXXX_WN64_1.13.2.EXE`.
+3. Run a **compliance scan** (`POST /api/servers/{id}/compliance`). Each component is reported as `Compliant`, `Update Available` or `No Baseline`.
+4. Select non-compliant servers and start a **rolling update**. FleetOps runs preflight (health and power), sends the baseline's image URI to each iDRAC via Redfish SimpleUpdate, and records the Redfish task.
+
+Compliance only covers components that have a baseline. Repeat steps 1–2 whenever Dell publishes a release you want to adopt.
+
 ## Production checklist
 1. Set a long random `SECRET_KEY` and protect `.env`.
 2. Set `SIMULATION_MODE=false` only after validation.
