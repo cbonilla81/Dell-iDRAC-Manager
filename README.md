@@ -15,6 +15,19 @@ Self-hosted web UI for centralized Dell PowerEdge iDRAC inventory, firmware comp
 - Job/batch history
 - Docker deployment
 - Simulation mode enabled by default
+- Standalone demo dashboard (`docs/demo.html`) for previewing the UI without a backend
+
+## Demo dashboard
+[`docs/demo.html`](docs/demo.html) is a standalone, interactive preview of the FleetOps UI. Open it in any browser; it needs no backend, Docker or iDRAC access, and uses built-in sample data only.
+
+It shows:
+- Fleet summary: managed servers, health, firmware compliance %, servers needing updates, jobs in the last 24 h
+- Compliance by component (iDRAC, BIOS, PERC, NIC), health per server group, recent activity
+- Fleet inventory with group filters, search, per-server firmware detail (current → target), scan, add/remove and group assignment
+- Simulated rolling updates with preflight checks (health, power) and stop-on-failure
+- Approved firmware baselines (HTTPS URIs only), job history with Redfish task URIs, and maintenance windows on a 24-hour timeline
+
+Suggested walkthrough: select `prd-db-02` and `edge-store-17` and run a BIOS rolling update, then add `dr-app-01` (health Critical) to see a preflight failure stop the batch. Changes are kept in memory and reset on page reload.
 
 ## Start
 ```bash

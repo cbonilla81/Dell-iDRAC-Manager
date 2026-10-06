@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dell FleetOps Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: ops console — header bar, KPI strip, three summary panels, tabbed work area (fleet / baselines / jobs / windows). Dark-first like the real FleetOps UI. */
+:root{
+  --bg:#08121f;--surface:#0e1b2c;--surface-2:#13243a;--line:#22344b;--line-soft:#1a2b40;
+  --fg:#e6edf6;--muted:#8ea3bb;--accent:#3b8cf2;--accent-bg:#13305a;--on-accent:#ffffff;
+  --ok:#45d29f;--ok-bg:#113a2f;--warn:#f2bb4f;--warn-bg:#41321a;--crit:#f36a80;--crit-bg:#45202a;
+  --neutral-bg:#2a3a50;
+  --font-ui:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]){
+  --bg:#f2f5f9;--surface:#ffffff;--surface-2:#e9eff6;--line:#d3dde9;--line-soft:#e3e9f1;
+  --fg:#0e1b2b;--muted:#566a80;--accent:#1466d1;--accent-bg:#dceafc;--on-accent:#ffffff;
+  --ok:#0d7f57;--ok-bg:#d9f3e8;--warn:#8d5c00;--warn-bg:#fbedcc;--crit:#bd2d47;--crit-bg:#fbe0e5;
+  --neutral-bg:#e1e7ef;color-scheme:light}}
+:root[data-theme="light"]{
+  --bg:#f2f5f9;--surface:#ffffff;--surface-2:#e9eff6;--line:#d3dde9;--line-soft:#e3e9f1;
+  --fg:#0e1b2b;--muted:#566a80;--accent:#1466d1;--accent-bg:#dceafc;--on-accent:#ffffff;
+  --ok:#0d7f57;--ok-bg:#d9f3e8;--warn:#8d5c00;--warn-bg:#fbedcc;--crit:#bd2d47;--crit-bg:#fbe0e5;
+  --neutral-bg:#e1e7ef;color-scheme:light}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-ui);font-size:14px;line-height:1.45}
+.mono{font-family:var(--font-mono);font-size:12.5px}
+.muted{color:var(--muted)}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.top-inner{max-width:1480px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px}
+.brand svg{color:var(--accent)}
+.brand small{font-family:var(--font-mono);font-size:11px;color:var(--accent);font-weight:500}
+.top-inner .sub{color:var(--muted);font-size:13px}
+.spacer{flex:1}
+.sim{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;padding:5px 10px;border-radius:999px;background:var(--warn-bg);color:var(--warn)}
+.sim i{width:7px;height:7px;border-radius:50%;background:currentColor}
+main{max-width:1480px;margin:0 auto;padding-inline:20px;padding-block:22px 48px;display:grid;gap:18px}
+.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:grid;gap:4px}
+.kpi .label{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.kpi .val{font-size:28px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+.kpi .val span{font-size:15px;color:var(--muted);font-weight:500}
+.kpi .note{font-size:12px;color:var(--muted)}
+.kpi .note b{font-weight:600}
+.ok-t{color:var(--ok)}.warn-t{color:var(--warn)}.crit-t{color:var(--crit)}
+.summary{display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:12px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;min-width:0}
+.panel h2{margin:0 0 12px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;text-wrap:balance}
+.panel h2 .muted{font-weight:400;font-size:12.5px;margin-left:auto}
+.bars{display:grid;gap:11px}
+.bar-row{display:grid;grid-template-columns:62px 1fr 64px;gap:10px;align-items:center;font-size:12.5px}
+.bar-row .name{font-weight:600}
+.bar-track{height:12px;border-radius:3px;background:var(--surface-2);display:flex;overflow:hidden}
+.bar-track .c{background:var(--ok)}.bar-track .u{background:var(--warn)}
+.bar-row .pct{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.legend{display:flex;gap:14px;margin-top:12px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.groups{display:grid;gap:2px}
+.grp{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-soft);font-size:13px}
+.grp:last-child{border-bottom:0}
+.dots{display:flex;gap:3px}
+.dots i{width:9px;height:9px;border-radius:2px;background:var(--ok)}
+.dots i.Warning{background:var(--warn)}.dots i.Critical{background:var(--crit)}
+.activity{display:grid;gap:0;font-size:12.5px}
+.act{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:7px 0;border-bottom:1px solid var(--line-soft)}
+.act:last-child{border-bottom:0}
+.act time{font-family:var(--font-mono);font-size:11.5px;color:var(--muted);padding-top:1px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.tab{background:none;border:0;color:var(--muted);font:inherit;font-weight:600;padding:10px 14px;border-bottom:2px solid transparent;cursor:pointer;display:inline-flex;gap:7px;align-items:center}
+.tab:hover{color:var(--fg)}
+.tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
+.tab .count{font-size:11px;background:var(--surface-2);padding:1px 7px;border-radius:999px;color:var(--muted)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:5px 11px;font:inherit;font-size:12.5px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent-bg);color:var(--fg);border-color:var(--accent)}
+.btn{background:var(--accent);color:var(--on-accent);border:0;border-radius:7px;padding:8px 13px;font:inherit;font-weight:600;font-size:13px;display:inline-flex;gap:6px;align-items:center;cursor:pointer;white-space:nowrap}
+.btn:hover{filter:brightness(1.08)}
+.btn.secondary{background:var(--surface-2);color:var(--fg);border:1px solid var(--line)}
+.btn.ghost{background:none;color:var(--muted);border:1px solid var(--line);padding:6px 8px}
+.btn.ghost:hover{color:var(--fg)}
+.btn.danger{background:var(--crit-bg);color:var(--crit)}
+.btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input,select{background:var(--bg);border:1px solid var(--line);color:var(--fg);border-radius:7px;padding:8px 10px;font:inherit;font-size:13px;min-width:0}
+.search{width:220px;max-width:100%}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line-soft);white-space:nowrap;vertical-align:middle}
+th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;background:var(--surface-2)}
+tbody tr:last-child td{border-bottom:0}
+tbody tr.sel td{background:var(--accent-bg)}
+td.num{font-variant-numeric:tabular-nums}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--neutral-bg);color:var(--muted)}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill.ok{background:var(--ok-bg);color:var(--ok)}
+.pill.warn{background:var(--warn-bg);color:var(--warn)}
+.pill.crit{background:var(--crit-bg);color:var(--crit)}
+.pill.info{background:var(--accent-bg);color:var(--accent)}
+.tag{font-size:11.5px;padding:2px 8px;border-radius:4px;background:var(--surface-2);border:1px solid var(--line);color:var(--muted)}
+.row-actions{display:flex;gap:5px}
+.detail td{background:var(--bg);white-space:normal}
+.fw-list{display:flex;gap:8px;flex-wrap:wrap}
+.fw{border:1px solid var(--line);border-radius:6px;padding:7px 10px;font-size:12px;display:grid;gap:2px;background:var(--surface)}
+.fw b{font-size:12px}
+.fw.need{border-color:var(--warn)}
+.fw .arrow{color:var(--warn)}
+.drawer{border:1px solid var(--accent);background:var(--surface-2);border-radius:8px;padding:14px;margin-bottom:12px;display:grid;gap:12px}
+.drawer h3{margin:0;font-size:14px}
+.form-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.form-row label{font-size:12.5px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.batch{display:grid;gap:8px}
+.step{display:grid;grid-template-columns:150px 1fr 120px;gap:12px;align-items:center;font-size:12.5px}
+.prog{height:6px;background:var(--bg);border-radius:3px;overflow:hidden}
+.prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+.prog i.done{background:var(--ok)}.prog i.fail{background:var(--crit)}
+.jobs .job{display:grid;grid-template-columns:110px 1fr auto;gap:14px;padding:11px 4px;border-bottom:1px solid var(--line-soft);align-items:center}
+.jobs .job:last-child{border-bottom:0}
+.job .what{display:grid;gap:2px;min-width:0}
+.job .what .mono{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.note-box{font-size:12.5px;color:var(--muted);max-width:75ch;margin:0 0 12px}
+.uri{max-width:360px;overflow:hidden;text-overflow:ellipsis}
+.toast{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);padding:11px 14px;border-radius:8px;font-size:13px;max-width:min(380px,calc(100vw - 32px));box-shadow:0 8px 24px rgb(0 0 0 / .25);z-index:10}
+.win-bar{position:relative;height:14px;background:var(--surface-2);border-radius:3px;width:240px}
+.win-bar i{position:absolute;top:0;bottom:0;background:var(--accent);border-radius:3px;opacity:.85}
+.win-bar b{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--fg)}
+@media (max-width:1100px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.summary{grid-template-columns:1fr 1fr}.summary .panel:first-child{grid-column:1/-1}}
+@media (max-width:640px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.summary{grid-template-columns:1fr}.top-inner .sub{display:none}.step{grid-template-columns:1fr;gap:4px}.jobs .job{grid-template-columns:1fr}.search{width:100%}main{padding-inline:16px}}
+@media (prefers-reduced-motion:reduce){.prog i{transition:none}}
+</style>
+<style>body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+      Dell FleetOps <small>v0.2</small>
+    </div>
+    <span class="sub">Centralized iDRAC lifecycle management</span>
+    <span class="spacer"></span>
+    <span class="sim" title="Redfish calls are simulated; no hardware is touched"><i></i>Simulation mode · sample data</span>
+  </div>
+</header>
+
+<main>
+  <section class="kpis" id="kpis" aria-label="Fleet summary"></section>
+
+  <section class="summary">
+    <div class="panel">
+      <h2>Firmware compliance by component <span class="muted" id="compNote"></span></h2>
+      <div class="bars" id="bars"></div>
+      <div class="legend"><span><i style="background:var(--ok)"></i>At or above baseline</span><span><i style="background:var(--warn)"></i>Update available</span></div>
+    </div>
+    <div class="panel">
+      <h2>Server groups <span class="muted">health per server</span></h2>
+      <div class="groups" id="groups"></div>
+    </div>
+    <div class="panel">
+      <h2>Recent activity</h2>
+      <div class="activity" id="activity"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="fleet" aria-selected="true">Fleet <span class="count" id="cFleet"></span></button>
+      <button class="tab" role="tab" data-tab="baselines" aria-selected="false">Baselines <span class="count" id="cBase"></span></button>
+      <button class="tab" role="tab" data-tab="jobs" aria-selected="false">Jobs <span class="count" id="cJobs"></span></button>
+      <button class="tab" role="tab" data-tab="windows" aria-selected="false">Maintenance windows</button>
+    </div>
+    <div class="panel" style="border-top-left-radius:0;border-top-right-radius:0;border-top:0" id="tabBody"></div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+const COMPONENTS=["iDRAC","BIOS","PERC","NIC"];
+const GROUPS=["Production","DR Site","Lab","Edge"];
+const now=Date.now();const ago=m=>new Date(now-m*60000);
+let servers=[
+ {id:1,name:"prd-db-01",addr:"10.20.1.11",group:"Production",model:"PowerEdge R750",tag:"7HKQ2T3",health:"OK",power:"On",fw:{iDRAC:"7.10.50.00",BIOS:"1.13.2",PERC:"52.26.0-5179",NIC:"22.71.3"},scan:ago(42)},
+ {id:2,name:"prd-db-02",addr:"10.20.1.12",group:"Production",model:"PowerEdge R750",tag:"7HKR2T3",health:"OK",power:"On",fw:{iDRAC:"7.10.30.00",BIOS:"1.9.2",PERC:"52.21.0-4606",NIC:"22.71.3"},scan:ago(42)},
+ {id:3,name:"prd-app-01",addr:"10.20.1.21",group:"Production",model:"PowerEdge R650",tag:"3FJW9V3",health:"OK",power:"On",fw:{iDRAC:"7.10.50.00",BIOS:"1.13.2",PERC:"52.26.0-5179"},scan:ago(43)},
+ {id:4,name:"prd-app-02",addr:"10.20.1.22",group:"Production",model:"PowerEdge R650",tag:"3FJX9V3",health:"Warning",power:"On",fw:{iDRAC:"7.00.60.00",BIOS:"1.11.2",PERC:"52.26.0-5179"},scan:ago(43)},
+ {id:5,name:"prd-vh-01",addr:"10.20.1.31",group:"Production",model:"PowerEdge R660",tag:"9LMN4X2",health:"OK",power:"On",fw:{iDRAC:"7.10.50.00",BIOS:"2.2.8"},scan:ago(44)},
+ {id:6,name:"prd-vh-02",addr:"10.20.1.32",group:"Production",model:"PowerEdge R660",tag:"9LMP4X2",health:"OK",power:"On",fw:{iDRAC:"7.10.30.00",BIOS:"2.1.5"},scan:ago(44)},
+ {id:7,name:"dr-db-01",addr:"10.40.1.11",group:"DR Site",model:"PowerEdge R750",tag:"5TQZ8K1",health:"OK",power:"On",fw:{iDRAC:"7.10.30.00",BIOS:"1.13.2",PERC:"52.26.0-5179",NIC:"21.85.21"},scan:ago(180)},
+ {id:8,name:"dr-app-01",addr:"10.40.1.21",group:"DR Site",model:"PowerEdge R740xd",tag:"2BCD7F9",health:"Critical",power:"On",fw:{iDRAC:"6.10.30.00",BIOS:"2.19.1",PERC:"51.16.0-5150"},scan:ago(181)},
+ {id:9,name:"dr-app-02",addr:"10.40.1.22",group:"DR Site",model:"PowerEdge R740xd",tag:"2BCF7F9",health:"OK",power:"Off",fw:{iDRAC:"7.00.00.172",BIOS:"2.21.2",PERC:"51.16.0-5150"},scan:ago(181)},
+ {id:10,name:"lab-r7525-01",addr:"10.90.5.10",group:"Lab",model:"PowerEdge R7525",tag:"8XYV3M6",health:"OK",power:"On",fw:{iDRAC:"7.10.50.00",BIOS:"2.15.3"},scan:ago(12)},
+ {id:11,name:"lab-r750-01",addr:"10.90.5.11",group:"Lab",model:"PowerEdge R750",tag:"8XYW3M6",health:"OK",power:"On",fw:{iDRAC:"7.10.50.00",BIOS:"1.13.2",PERC:"52.26.0-5179",NIC:"22.71.3"},scan:ago(12)},
+ {id:12,name:"edge-store-17",addr:"172.16.17.5",group:"Edge",model:"PowerEdge R650",tag:"6PLK1D4",health:"Warning",power:"On",fw:{iDRAC:"6.10.80.00",BIOS:"1.8.2",PERC:"52.21.0-4606"},scan:ago(1440)},
+];
+const REPO="https://firmware.corp.local/dell";
+let baselines=[
+ ["PowerEdge R750","iDRAC","7.10.50.00"],["PowerEdge R750","BIOS","1.13.2"],["PowerEdge R750","PERC","52.26.0-5179"],["PowerEdge R750","NIC","22.71.3"],
+ ["PowerEdge R650","iDRAC","7.10.50.00"],["PowerEdge R650","BIOS","1.13.2"],["PowerEdge R650","PERC","52.26.0-5179"],
+ ["PowerEdge R660","iDRAC","7.10.50.00"],["PowerEdge R660","BIOS","2.2.8"],
+ ["PowerEdge R740xd","iDRAC","7.00.00.172"],["PowerEdge R740xd","BIOS","2.21.2"],["PowerEdge R740xd","PERC","51.16.0-5150"],
+ ["PowerEdge R7525","iDRAC","7.10.50.00"],["PowerEdge R7525","BIOS","2.15.3"],
+].map(([model,component,target],i)=>({id:i+1,model,component,target,uri:`${REPO}/${model.split(" ")[1]}/${component}_${target}.EXE`,approved:true,updated:ago(60*24*(3+i%9))}));
+let windows=[
+ {name:"Production weekend",group:"Production",start:1,end:5,days:"Sat–Sun",enabled:true},
+ {name:"DR nightly",group:"DR Site",start:22,end:2,days:"Daily",enabled:true},
+ {name:"Lab anytime",group:"Lab",start:0,end:23,days:"Daily",enabled:true},
+ {name:"Edge after close",group:"Edge",start:23,end:4,days:"Mon–Fri",enabled:false},
+];
+let jobs=[
+ {id:1041,server:"lab-r750-01",action:"Update BIOS",status:"Completed",detail:"BIOS 1.11.2 → 1.13.2",task:"/redfish/v1/TaskService/Tasks/JID_872934112045",batch:"b-3f91c2",at:ago(14)},
+ {id:1040,server:"lab-r7525-01",action:"Update iDRAC",status:"Completed",detail:"iDRAC 7.10.30.00 → 7.10.50.00",task:"/redfish/v1/TaskService/Tasks/JID_872934101877",batch:"b-3f91c2",at:ago(22)},
+ {id:1039,server:"prd-db-01",action:"Inventory scan",status:"Completed",detail:"4 firmware components captured",task:"",batch:"",at:ago(42)},
+ {id:1038,server:"dr-app-01",action:"Preflight",status:"Failed",detail:"System health is Critical",task:"",batch:"b-8ad014",at:ago(185)},
+ {id:1037,server:"prd-db-01",action:"Update PERC",status:"Completed",detail:"PERC 52.21.0-4606 → 52.26.0-5179",task:"/redfish/v1/TaskService/Tasks/JID_872811400233",batch:"b-77c1e0",at:ago(60*26)},
+];
+let nextJob=1042;
+const state={tab:"fleet",group:"All",q:"",sel:new Set(),open:new Set([2]),drawer:null,confirmDel:null,running:false,batch:null};
+
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const vkey=v=>(String(v).match(/\d+/g)||[]).slice(0,6).map(Number);
+function cmp(a,b){a=vkey(a);b=vkey(b);for(let i=0;i<Math.max(a.length,b.length);i++){const x=a[i]??-1,y=b[i]??-1;if(x!==y)return x<y?-1:1}return 0}
+const baseFor=(model,comp)=>baselines.find(b=>b.approved&&b.model===model&&b.component===comp);
+function compliance(s){return Object.entries(s.fw).map(([c,v])=>{const b=baseFor(s.model,c);return{c,v,target:b?.target,status:!b?"none":cmp(v,b.target)>=0?"ok":"update"}})}
+const pending=s=>compliance(s).filter(x=>x.status==="update").length;
+const rel=d=>{const m=Math.round((Date.now()-d)/60000);return m<1?"just now":m<60?`${m} min ago`:m<1440?`${Math.round(m/60)} h ago`:`${Math.round(m/1440)} d ago`};
+const hhmm=d=>d.toTimeString().slice(0,5);
+const healthPill=h=>`<span class="pill ${h==="OK"?"ok":h==="Warning"?"warn":"crit"}">${h}</span>`;
+const statusPill=s=>`<span class="pill ${{Completed:"ok",Failed:"crit",Running:"info",Preflight:"info",Skipped:"",Cancelled:"warn",Queued:""}[s]??""}">${s}</span>`;
+let toastT;function toast(msg){const t=$("#toast");t.textContent=msg;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,3500)}
+
+function renderSummary(){
+  const healthy=servers.filter(s=>s.health==="OK").length;
+  const all=servers.flatMap(compliance).filter(x=>x.status!=="none");
+  const okC=all.filter(x=>x.status==="ok").length;
+  const pct=all.length?Math.round(okC/all.length*100):0;
+  const needSrv=servers.filter(s=>pending(s)>0).length;
+  const today=jobs.filter(j=>Date.now()-j.at<86400000);
+  const fails=today.filter(j=>j.status==="Failed").length;
+  $("#kpis").innerHTML=[
+    ["Managed servers",servers.length,"",`${GROUPS.length} groups · ${new Set(servers.map(s=>s.model)).size} models`],
+    ["Healthy",healthy,` / ${servers.length}`,`<b class="warn-t">${servers.filter(s=>s.health==="Warning").length} warning</b> · <b class="crit-t">${servers.filter(s=>s.health==="Critical").length} critical</b>`],
+    ["Firmware compliance",pct,"%",`${okC} of ${all.length} components at baseline`],
+    ["Servers needing updates",needSrv,"",`${all.length-okC} component updates pending`],
+    ["Jobs, last 24 h",today.length,"",fails?`<b class="crit-t">${fails} failed</b>`:"No failures"],
+  ].map(([l,v,u,n])=>`<div class="kpi"><div class="label">${l}</div><div class="val">${v}<span>${u}</span></div><div class="note">${n}</div></div>`).join("");
+  $("#compNote").textContent=`${baselines.length} approved baselines`;
+  $("#bars").innerHTML=COMPONENTS.map(c=>{const xs=all.filter(x=>x.c===c),o=xs.filter(x=>x.status==="ok").length,u=xs.length-o;
+    return `<div class="bar-row"><span class="name">${c}</span><div class="bar-track" title="${o} at baseline, ${u} need update"><i class="c" style="width:${o/xs.length*100}%"></i><i class="u" style="width:${u/xs.length*100}%"></i></div><span class="pct">${o}/${xs.length}</span></div>`}).join("");
+  $("#groups").innerHTML=GROUPS.map(g=>{const ss=servers.filter(s=>s.group===g);const up=ss.reduce((a,s)=>a+pending(s),0);
+    return `<div class="grp"><span><b>${g}</b> <span class="muted">· ${ss.length}</span></span><span class="dots">${ss.map(s=>`<i class="${s.health}" title="${esc(s.name)}: ${s.health}"></i>`).join("")}</span><span class="${up?"warn-t":"ok-t"}" style="font-size:12px">${up?up+" updates":"compliant"}</span></div>`}).join("");
+  $("#activity").innerHTML=jobs.slice(0,5).map(j=>`<div class="act"><time>${hhmm(j.at)}</time><span><b>${esc(j.server)}</b> · ${esc(j.action)} <span class="${j.status==="Failed"?"crit-t":j.status==="Completed"?"ok-t":"muted"}">${j.status.toLowerCase()}</span></span></div>`).join("");
+  $("#cFleet").textContent=servers.length;$("#cBase").textContent=baselines.length;$("#cJobs").textContent=jobs.length;
+}
+
+function renderFleet(){
+  const list=servers.filter(s=>(state.group==="All"||s.group===state.group)&&(!state.q||[s.name,s.addr,s.tag,s.model].join(" ").toLowerCase().includes(state.q)));
+  const n=state.sel.size;
+  let drawer="";
+  if(state.drawer==="rolling"){
+    drawer=`<div class="drawer"><h3>Rolling firmware update · ${n} server${n===1?"":"s"} selected</h3>
+    <p class="note-box" style="margin:0">Servers update one at a time. Each runs a preflight check (health, power) and only installs the approved baseline image for its model.</p>
+    <div class="form-row"><label for="ruComp">Component</label><select id="ruComp">${COMPONENTS.map(c=>`<option>${c}</option>`).join("")}</select>
+    <label><input type="checkbox" id="ruStop" checked> Stop on first failure</label>
+    <span class="spacer"></span><button class="btn secondary" data-act="closeDrawer">Cancel</button><button class="btn" data-act="startRolling" ${n&&!state.running?"":"disabled"}>Start update</button></div></div>`;
+  }else if(state.drawer==="group"){
+    drawer=`<div class="drawer"><h3>Assign ${n} server${n===1?"":"s"} to a group</h3><div class="form-row"><select id="grpSel">${GROUPS.map(g=>`<option>${g}</option>`).join("")}</select><button class="btn secondary" data-act="closeDrawer">Cancel</button><button class="btn" data-act="assignGroup" ${n?"":"disabled"}>Assign</button></div></div>`;
+  }else if(state.drawer==="add"){
+    drawer=`<div class="drawer"><h3>Add an iDRAC</h3><form class="form-row" id="addForm"><input id="addName" required placeholder="Name"><input id="addAddr" required placeholder="iDRAC IP or DNS"><input id="addUser" required value="root" aria-label="Username"><input id="addPass" required type="password" placeholder="Password"><select id="addModel">${[...new Set(baselines.map(b=>b.model))].map(m=>`<option>${m}</option>`).join("")}</select><button class="btn secondary" type="button" data-act="closeDrawer">Cancel</button><button class="btn">Add and scan</button></form><span class="muted" style="font-size:12px">Credentials are stored encrypted. In this demo nothing leaves the page.</span></div>`;
+  }
+  const batch=state.batch?`<div class="drawer" style="border-color:var(--line)"><h3>Batch <span class="mono">${state.batch.id}</span> · ${state.batch.comp} ${state.running?'<span class="pill info">Running</span>':'<span class="pill">Finished</span>'}</h3><div class="batch">${state.batch.steps.map(st=>`<div class="step"><b>${esc(st.name)}</b><div class="prog"><i class="${st.status==="Completed"||st.status==="Skipped"?"done":st.status==="Failed"||st.status==="Cancelled"?"fail":""}" style="width:${st.pct}%"></i></div><span>${statusPill(st.status)}</span><span></span><span class="muted" style="font-size:12px;grid-column:2/-1">${esc(st.msg)}</span></div>`).join("")}</div>${state.running?"":`<div><button class="btn secondary" data-act="dismissBatch">Dismiss</button></div>`}</div>`:"";
+  $("#tabBody").innerHTML=`
+  <div class="toolbar">
+    <div class="chips">${["All",...GROUPS].map(g=>`<button class="chip" data-group="${g}" aria-pressed="${state.group===g}">${g}</button>`).join("")}</div>
+    <input class="search" id="search" placeholder="Search name, IP, tag" value="${esc(state.q)}">
+    <span class="spacer"></span>
+    <button class="btn secondary" data-act="openAdd">+ Add server</button>
+    <button class="btn secondary" data-act="openGroup" ${n?"":"disabled"}>Assign group</button>
+    <button class="btn" data-act="openRolling" ${n&&!state.running?"":"disabled"}>▶ Rolling update${n?` (${n})`:""}</button>
+  </div>
+  ${drawer}${batch}
+  <div class="table-wrap"><table>
+   <thead><tr><th><input type="checkbox" id="selAll" aria-label="Select all shown" ${list.length&&list.every(s=>state.sel.has(s.id))?"checked":""}></th><th>Name</th><th>Group</th><th>iDRAC address</th><th>Model</th><th>Service tag</th><th>BIOS</th><th>iDRAC FW</th><th>Health</th><th>Power</th><th>Compliance</th><th>Last scan</th><th></th></tr></thead>
+   <tbody>${list.map(s=>{const p=pending(s),c=compliance(s);return `
+    <tr class="${state.sel.has(s.id)?"sel":""}">
+     <td><input type="checkbox" data-sel="${s.id}" aria-label="Select ${esc(s.name)}" ${state.sel.has(s.id)?"checked":""}></td>
+     <td><b>${esc(s.name)}</b></td><td><span class="tag">${s.group}</span></td><td class="mono">${s.addr}</td><td>${s.model}</td><td class="mono">${s.tag}</td>
+     <td class="mono">${s.fw.BIOS}</td><td class="mono">${s.fw.iDRAC}</td><td>${healthPill(s.health)}</td>
+     <td><span class="${s.power==="On"?"":"muted"}">${s.power}</span></td>
+     <td>${c.every(x=>x.status==="none")?'<span class="pill">No baseline</span>':p?`<span class="pill warn">${p} update${p>1?"s":""}</span>`:'<span class="pill ok">Compliant</span>'}</td>
+     <td class="muted">${rel(s.scan)}</td>
+     <td><div class="row-actions">
+       <button class="btn ghost" data-act="scan" data-id="${s.id}" title="Inventory scan">↻ Scan</button>
+       <button class="btn ghost" data-act="toggle" data-id="${s.id}" aria-expanded="${state.open.has(s.id)}">${state.open.has(s.id)?"Hide":"Firmware"}</button>
+       ${state.confirmDel===s.id?`<button class="btn danger" data-act="del" data-id="${s.id}">Confirm remove</button>`:`<button class="btn ghost" data-act="askDel" data-id="${s.id}" title="Remove server">✕</button>`}
+     </div></td>
+    </tr>
+    ${state.open.has(s.id)?`<tr class="detail"><td></td><td colspan="12"><div class="fw-list">${c.map(x=>`<div class="fw ${x.status==="update"?"need":""}"><b>${x.c}</b><span class="mono">${x.v}${x.status==="update"?` <span class="arrow">→ ${x.target}</span>`:""}</span><span class="${x.status==="ok"?"ok-t":x.status==="update"?"warn-t":"muted"}">${x.status==="ok"?"At baseline":x.status==="update"?"Update available":"No baseline"}</span></div>`).join("")}</div></td></tr>`:""}`}).join("")||`<tr><td colspan="13" class="muted" style="text-align:center;padding:28px">No servers match this filter.</td></tr>`}
+   </tbody></table></div>
+  <p class="muted" style="font-size:12px;margin:10px 0 0">Tip: select prd-db-02 and edge-store-17, then run a BIOS rolling update. Add dr-app-01 to see a preflight failure stop the batch.</p>`;
+}
+
+function renderBaselines(){
+  $("#tabBody").innerHTML=`<p class="note-box">Approve a tested target version and firmware URI for each PowerEdge model and component. FleetOps never infers an update image from version numbers; it installs only what is listed here.</p>
+  <form class="form-row" id="baseForm" style="margin-bottom:12px"><input id="bModel" required value="PowerEdge R750" aria-label="Model"><select id="bComp" aria-label="Component">${COMPONENTS.map(c=>`<option>${c}</option>`).join("")}</select><input id="bVer" required placeholder="Target version"><input id="bUri" required placeholder="HTTPS firmware URI" style="flex:1;min-width:200px"><button class="btn">Approve baseline</button></form>
+  <div class="table-wrap"><table><thead><tr><th>Model</th><th>Component</th><th>Target version</th><th>Firmware URI</th><th>Servers behind</th><th>Status</th><th>Updated</th></tr></thead><tbody>
+  ${baselines.map(b=>{const behind=servers.filter(s=>s.model===b.model&&s.fw[b.component]&&cmp(s.fw[b.component],b.target)<0).length;
+   return `<tr><td>${b.model}</td><td><b>${b.component}</b></td><td class="mono">${b.target}</td><td class="mono uri" title="${esc(b.uri)}">${esc(b.uri)}</td><td class="num ${behind?"warn-t":"muted"}">${behind}</td><td><span class="pill ok">Approved</span></td><td class="muted">${rel(b.updated)}</td></tr>`}).join("")}
+  </tbody></table></div>`;
+}
+
+function renderJobs(){
+  $("#tabBody").innerHTML=`<div class="jobs">${jobs.map(j=>`<div class="job"><span>${statusPill(j.status)}</span><div class="what"><span><b>${esc(j.server)}</b> · ${esc(j.action)} <span class="muted">— ${esc(j.detail)}</span></span>${j.task?`<span class="mono">${j.task}</span>`:""}</div><span class="muted" style="font-size:12px;text-align:right">${j.batch?`<span class="mono">${j.batch}</span> · `:""}#${j.id} · ${rel(j.at)}</span></div>`).join("")}</div>`;
+}
+
+function renderWindows(){
+  const h=new Date().getHours();
+  const inWin=w=>w.start<=w.end?h>=w.start&&h<=w.end:h>=w.start||h<=w.end;
+  const seg=(a,b)=>`<i style="left:${a/24*100}%;width:${(b-a+1)/24*100}%"></i>`;
+  $("#tabBody").innerHTML=`<p class="note-box">Maintenance windows limit when a group may receive updates. Bars show the 24-hour day; the vertical line is the current hour.</p>
+  <div class="table-wrap"><table><thead><tr><th>Window</th><th>Group</th><th>Days</th><th>Hours</th><th>Day timeline (00–24)</th><th>Now</th></tr></thead><tbody>
+  ${windows.map(w=>`<tr><td><b>${w.name}</b></td><td><span class="tag">${w.group}</span></td><td>${w.days}</td><td class="mono">${String(w.start).padStart(2,"0")}:00–${String(w.end).padStart(2,"0")}:59</td>
+  <td><div class="win-bar">${w.start<=w.end?seg(w.start,w.end):seg(w.start,23)+seg(0,w.end)}<b style="left:${(h+.5)/24*100}%"></b></div></td>
+  <td>${!w.enabled?'<span class="pill">Disabled</span>':inWin(w)?'<span class="pill ok">Open</span>':'<span class="pill">Closed</span>'}</td></tr>`).join("")}
+  </tbody></table></div>`;
+}
+
+function render(){renderSummary();({fleet:renderFleet,baselines:renderBaselines,jobs:renderJobs,windows:renderWindows})[state.tab]();
+  document.querySelectorAll(".tab").forEach(t=>t.setAttribute("aria-selected",t.dataset.tab===state.tab))}
+
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function addJob(j){jobs.unshift({id:nextJob++,at:new Date(),task:"",batch:"",...j});return jobs[0]}
+async function rolling(comp,stop){
+  const ids=[...state.sel];const id="b-"+Math.random().toString(16).slice(2,8);
+  state.running=true;state.drawer=null;
+  state.batch={id,comp,steps:ids.map(i=>({sid:i,name:servers.find(s=>s.id===i).name,status:"Queued",pct:0,msg:"Waiting"}))};
+  render();
+  let halted=false;
+  for(const st of state.batch.steps){
+    const s=servers.find(x=>x.id===st.sid);
+    if(halted){st.status="Cancelled";st.msg="Batch stopped after an earlier failure";addJob({server:s.name,action:`Update ${comp}`,status:"Cancelled",detail:st.msg,batch:id});render();continue}
+    st.status="Preflight";st.msg="Checking health and power state";st.pct=8;render();await sleep(700);
+    const issues=[];if(!["OK","Warning"].includes(s.health))issues.push("System health is "+s.health);if(s.power!=="On")issues.push("Server is not powered on");
+    const b=baseFor(s.model,comp);
+    if(issues.length){st.status="Failed";st.msg=issues.join("; ");st.pct=100;addJob({server:s.name,action:"Preflight",status:"Failed",detail:st.msg,batch:id});if(stop)halted=true;render();continue}
+    if(!s.fw[comp]||!b){st.status="Skipped";st.pct=100;st.msg=`No approved ${comp} baseline for ${s.model}`;addJob({server:s.name,action:`Update ${comp}`,status:"Skipped",detail:st.msg,batch:id});render();continue}
+    if(cmp(s.fw[comp],b.target)>=0){st.status="Skipped";st.pct=100;st.msg=`Already at ${b.target}`;addJob({server:s.name,action:`Update ${comp}`,status:"Skipped",detail:st.msg,batch:id});render();continue}
+    const task=`/redfish/v1/TaskService/Tasks/JID_${Math.floor(8e11+Math.random()*1e11)}`;
+    const job=addJob({server:s.name,action:`Update ${comp}`,status:"Running",detail:`SimpleUpdate ${b.uri.split("/").pop()}`,task,batch:id});
+    st.status="Running";
+    for(let p=15;p<=100;p+=17){st.pct=Math.min(p,100);st.msg=`Redfish task ${p<50?"downloading image":p<85?"applying update":"verifying"} · ${Math.min(p,100)}%`;render();await sleep(380)}
+    const from=s.fw[comp];s.fw[comp]=b.target;if(comp==="BIOS"||comp==="iDRAC")s.scan=new Date();
+    st.status="Completed";st.pct=100;st.msg=`${comp} ${from} → ${b.target}`;job.status="Completed";job.detail=st.msg;render();
+  }
+  state.running=false;render();
+  const ok=state.batch.steps.filter(s=>s.status==="Completed").length;
+  toast(`Batch ${id} finished: ${ok} updated, ${state.batch.steps.length-ok} not updated.`);
+}
+
+document.addEventListener("click",e=>{
+  const tab=e.target.closest(".tab");if(tab){state.tab=tab.dataset.tab;render();return}
+  const chip=e.target.closest("[data-group]");if(chip){state.group=chip.dataset.group;render();return}
+  const b=e.target.closest("[data-act]");if(!b||b.disabled)return;
+  const id=+b.dataset.id,act=b.dataset.act;
+  if(act!=="del"&&act!=="askDel")state.confirmDel=null;
+  if(act==="toggle"){state.open.has(id)?state.open.delete(id):state.open.add(id)}
+  else if(act==="scan"){const s=servers.find(x=>x.id===id);s.scan=new Date();addJob({server:s.name,action:"Inventory scan",status:"Completed",detail:`${Object.keys(s.fw).length} firmware components captured`});toast(`${s.name}: inventory refreshed over Redfish (simulated).`)}
+  else if(act==="askDel"){state.confirmDel=id}
+  else if(act==="del"){const s=servers.find(x=>x.id===id);servers=servers.filter(x=>x.id!==id);state.sel.delete(id);state.confirmDel=null;toast(`Removed ${s.name} from the fleet.`)}
+  else if(act==="openRolling")state.drawer="rolling";
+  else if(act==="openGroup")state.drawer="group";
+  else if(act==="openAdd")state.drawer="add";
+  else if(act==="closeDrawer")state.drawer=null;
+  else if(act==="dismissBatch")state.batch=null;
+  else if(act==="assignGroup"){const g=$("#grpSel").value;servers.forEach(s=>{if(state.sel.has(s.id))s.group=g});toast(`Moved ${state.sel.size} server(s) to ${g}.`);state.drawer=null}
+  else if(act==="startRolling"){rolling($("#ruComp").value,$("#ruStop").checked);return}
+  render();
+});
+document.addEventListener("change",e=>{
+  if(e.target.dataset.sel){const id=+e.target.dataset.sel;e.target.checked?state.sel.add(id):state.sel.delete(id);render()}
+  else if(e.target.id==="selAll"){document.querySelectorAll("[data-sel]").forEach(c=>{const id=+c.dataset.sel;e.target.checked?state.sel.add(id):state.sel.delete(id)});render()}
+});
+document.addEventListener("input",e=>{if(e.target.id==="search"){state.q=e.target.value.toLowerCase();const pos=e.target.selectionStart;render();const s=$("#search");s.focus();s.setSelectionRange(pos,pos)}});
+document.addEventListener("submit",e=>{
+  e.preventDefault();
+  if(e.target.id==="addForm"){const model=$("#addModel").value;const fw={};baselines.filter(b=>b.model===model).forEach(b=>fw[b.component]=b.target);
+    if(fw.BIOS)fw.BIOS=fw.BIOS.replace(/\d+$/,d=>Math.max(0,d-1));
+    const s={id:Math.max(0,...servers.map(x=>x.id))+1,name:$("#addName").value,addr:$("#addAddr").value,group:"Lab",model,tag:"SIM"+Math.floor(1000+Math.random()*9000),health:"OK",power:"On",fw,scan:new Date()};
+    servers.push(s);addJob({server:s.name,action:"Inventory scan",status:"Completed",detail:"Server added and scanned"});state.drawer=null;toast(`Added ${s.name} to Lab and ran an inventory scan.`);render()}
+  if(e.target.id==="baseForm"){const model=$("#bModel").value,component=$("#bComp").value,target=$("#bVer").value,uri=$("#bUri").value;
+    if(!/^https:\/\//.test(uri)){toast("The firmware URI must start with https:// so iDRAC can fetch it securely.");return}
+    baselines=baselines.filter(b=>!(b.model===model&&b.component===component));
+    baselines.push({id:baselines.length+1,model,component,target,uri,approved:true,updated:new Date()});toast(`Approved ${component} ${target} for ${model}.`);render()}
+});
+render();
+</script>
+</body>
+</html>
