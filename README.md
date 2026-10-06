@@ -29,13 +29,59 @@ It shows:
 
 Suggested walkthrough: select `prd-db-02` and `edge-store-17` and run a BIOS rolling update, then add `dr-app-01` (health Critical) to see a preflight failure stop the batch. Changes are kept in memory and reset on page reload.
 
-## Start
-```bash
-cp .env.example .env
-# Replace SECRET_KEY before storing real credentials.
+## Deploy with Docker Compose
+
+### Prerequisites
+- Docker Engine (or Docker Desktop) with the Docker Compose plugin.
+- TCP port `8080` available on the Docker host, or adjust the published port in `docker-compose.yml`.
+
+Run the following commands from the project directory. Create a local `.env` file from the example (in PowerShell, use `Copy-Item .env.example .env`; in Bash, use `cp .env.example .env`):
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Before deploying, edit `.env` and set `SECRET_KEY` to a unique, long random value. In PowerShell, generate a 48-byte cryptographically random value with:
+
+```powershell
+$bytes = New-Object byte[] 48
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$rng.GetBytes($bytes)
+[BitConverter]::ToString($bytes).Replace('-', '').ToLowerInvariant()
+```
+
+Copy the printed value into `.env`. Keep this file private and backed up: the application uses this key to encrypt stored iDRAC credentials, and changing it later makes existing credentials unreadable. Keep `SIMULATION_MODE=true` while evaluating the application; only set it to `false` when ready to contact real iDRACs. `VERIFY_TLS=false` accepts self-signed iDRAC certificates; set it to `true` when the iDRACs use certificates trusted by the backend container.
+
+Build the images and start both services in the background:
+
+```powershell
 docker compose up -d --build
 ```
-Open `http://SERVER:8080`.
+
+Check that both containers are running and inspect their logs if startup fails:
+
+```powershell
+docker compose ps
+docker compose logs --tail=100
+```
+
+Open `http://<DOCKER_HOST>:8080` in a browser, replacing `<DOCKER_HOST>` with the Docker host name or IP address. On the Docker host itself, use `http://localhost:8080`. Allow inbound TCP `8080` through the host firewall if clients connect remotely. The frontend routes API requests to the backend internally; only the frontend port is published.
+
+### Updating and stopping
+
+After updating the project files, rebuild and restart the services:
+
+```powershell
+docker compose up -d --build
+```
+
+Stop the services without deleting application data:
+
+```powershell
+docker compose down
+```
+
+The database is stored in the Docker named volume `idrac_data`, so it persists across container rebuilds and `docker compose down`. Back it up regularly. **Do not run `docker compose down -v` unless you intend to permanently delete the database and other data in that volume.**
 
 ## Safe evaluation
 Leave `SIMULATION_MODE=true`. Add test servers in the UI; Redfish calls are simulated. Define an approved baseline, run a compliance scan, select servers, then test a rolling update.
