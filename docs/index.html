@@ -1,0 +1,183 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dell FleetOps | Documentation Portal</title>
+  <style>
+    :root {
+      --blue: #007db8;
+      --dark: #12263a;
+      --muted: #61758a;
+      --background: #f3f7fb;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: var(--background);
+      color: var(--dark);
+    }
+
+    header {
+      background: linear-gradient(120deg, #003b61, #007db8);
+      color: white;
+      padding: 58px 24px;
+      text-align: center;
+    }
+
+    header h1 {
+      margin: 0 0 12px;
+      font-size: 38px;
+    }
+
+    header p {
+      margin: 0;
+      font-size: 17px;
+      opacity: .92;
+    }
+
+    main {
+      max-width: 1100px;
+      margin: 42px auto;
+      padding: 0 20px;
+    }
+
+    .intro { margin-bottom: 30px; }
+
+    .intro p {
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 22px;
+    }
+
+    .card {
+      background: white;
+      border: 1px solid #dce6ee;
+      border-radius: 14px;
+      padding: 26px;
+      text-decoration: none;
+      color: inherit;
+      box-shadow: 0 5px 18px rgba(15, 40, 65, .05);
+      transition: transform .2s, box-shadow .2s;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 28px rgba(15, 40, 65, .12);
+    }
+
+    .icon { font-size: 30px; }
+
+    .card h2 {
+      color: var(--blue);
+      font-size: 21px;
+      margin: 16px 0 10px;
+    }
+
+    .card p {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .link {
+      display: inline-block;
+      margin-top: 14px;
+      color: var(--blue);
+      font-weight: bold;
+    }
+
+    footer {
+      text-align: center;
+      padding: 28px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 650px) {
+      .grid { grid-template-columns: 1fr; }
+      header h1 { font-size: 29px; }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Dell FleetOps</h1>
+    <p>Infrastructure Management & Firmware Intelligence</p>
+    <p>Technical Documentation Portal</p>
+  </header>
+
+  <main>
+    <section class="intro">
+      <h2>Welcome to FleetOps Documentation</h2>
+      <p>
+        Explore deployment instructions, Dell iDRAC onboarding,
+        Redfish API integration, and intelligent firmware
+        management architecture.
+      </p>
+    </section>
+
+    <section class="grid">
+
+      <a class="card" href="docker-deployment.html">
+        <div class="icon">🐳</div>
+        <h2>Docker Deployment</h2>
+        <p>
+          Deploy FleetOps on CentOS using Docker Engine.
+          Includes installation, configuration, troubleshooting,
+          persistent storage, and backup procedures.
+        </p>
+        <span class="link">View Deployment Guide →</span>
+      </a>
+
+      <a class="card" href="idrac-onboarding.html">
+        <div class="icon">🖥️</div>
+        <h2>iDRAC Onboarding</h2>
+        <p>
+          Configure Dell iDRAC controllers, discover hardware,
+          collect inventory, assess firmware compliance,
+          and perform controlled updates.
+        </p>
+        <span class="link">View Onboarding Guide →</span>
+      </a>
+
+      <a class="card" href="redfish-wiki.html">
+        <div class="icon">🔗</div>
+        <h2>Redfish API</h2>
+        <p>
+          Understand Redfish architecture, REST endpoints,
+          JSON responses, authentication, hardware inventory,
+          and Dell automation.
+        </p>
+        <span class="link">Explore Redfish →</span>
+      </a>
+
+      <a class="card" href="firmware-intelligence-wiki.html">
+        <div class="icon">🧠</div>
+        <h2>Firmware Intelligence</h2>
+        <p>
+          Explore Dell Service Tag integration, automatic
+          firmware baselines, compliance assessment,
+          AI-assisted analysis, and deployment safeguards.
+        </p>
+        <span class="link">Explore Firmware Intelligence →</span>
+      </a>
+
+    </section>
+  </main>
+
+  <footer>
+    Dell FleetOps Documentation Portal |
+    Open-source infrastructure management project
+  </footer>
+</body>
+</html>
