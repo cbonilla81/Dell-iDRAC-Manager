@@ -1,3 +1,9 @@
+
+<img width="1574" height="554" alt="fleetops-banner" src="https://github.com/user-attachments/assets/aab2c775-0f7b-4f24-a77c-5afb248a18a9" />
+
+
+
+
 # Dell FleetOps iDRAC Manager v0.2
 
 Self-hosted web UI for centralized Dell PowerEdge iDRAC inventory, firmware compliance and controlled Redfish firmware updates.
@@ -19,6 +25,9 @@ Self-hosted web UI for centralized Dell PowerEdge iDRAC inventory, firmware comp
 
 ## Demo dashboard
 [`docs/demo.html`](docs/demo.html) is a standalone, interactive preview of the FleetOps UI. Open it in any browser; it needs no backend, Docker or iDRAC access, and uses built-in sample data only.
+
+## Documentation Portal
+ https://cbonilla81.github.io/Dell-iDRAC-Manager/
 
 It shows:
 - Fleet summary: managed servers, health, firmware compliance %, servers needing updates, jobs in the last 24 h
