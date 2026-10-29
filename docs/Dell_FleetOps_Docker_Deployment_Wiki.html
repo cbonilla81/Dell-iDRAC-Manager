@@ -1,0 +1,255 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Docker Engine Deployment Runbook | FleetOps Wiki</title><style>:root{--blue:#0875c9;--navy:#102a43;--ink:#23364b;--muted:#62768a;--line:#dce7ef;--bg:#f4f8fb;--teal:#008d85}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 system-ui,-apple-system,Segoe UI,sans-serif}header{background:linear-gradient(115deg,#092a48,#0769a9);color:white;padding:48px max(24px,calc((100vw - 1100px)/2))}header h1{font-size:clamp(2rem,4vw,3.1rem);line-height:1.15;margin:10px 0}header p{max-width:750px;color:#d8ebfa}.eyebrow{letter-spacing:.14em;text-transform:uppercase;font-size:12px;font-weight:800;color:#85d8ff}.wrap{max-width:1100px;margin:auto;padding:26px 22px 70px;display:grid;grid-template-columns:220px 1fr;gap:28px}nav{position:sticky;top:18px;align-self:start;background:white;border:1px solid var(--line);border-radius:14px;padding:16px}nav a{display:block;color:#31536e;text-decoration:none;padding:7px 10px;border-radius:7px;font-size:14px}nav a:hover{background:#eaf5ff;color:#005a9b}main{min-width:0}section{background:white;border:1px solid var(--line);border-radius:16px;padding:26px;margin-bottom:22px;box-shadow:0 4px 20px #102a4308}h2{font-size:1.45rem;color:var(--navy);margin:0 0 12px}h3{font-size:1.06rem;color:#14527c;margin:22px 0 8px}.lead{font-size:1.12rem}.pill{display:inline-block;background:#e8f5ff;color:#075b93;padding:4px 10px;border-radius:50px;font-size:12px;font-weight:700;margin:3px 5px 3px 0}.callout{border-left:4px solid var(--blue);background:#edf7ff;padding:14px 18px;border-radius:8px;margin:18px 0}.warn{border-color:#d78a00;background:#fff7e7}.good{border-color:var(--teal);background:#eafaf6}svg{max-width:100%;height:auto;display:block;margin:15px auto}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;font-size:14px}th{text-align:left;background:#eaf4fb;color:#184e76}td,th{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}pre{background:#0c253c;color:#e6f4ff;border-radius:10px;padding:17px;overflow:auto;font-size:13px;line-height:1.5}code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}p code,li code{background:#e9f2f8;padding:2px 5px;border-radius:4px}a{color:#086ba8}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.metric{border:1px solid var(--line);background:#f7fbff;padding:15px;border-radius:11px;text-align:center}.metric strong{display:block;font-size:24px;color:#096ba8}.metric span{font-size:12px;color:var(--muted)}.step{display:flex;gap:14px;align-items:flex-start;margin:16px 0}.num{flex:none;border-radius:50%;background:#0875c9;color:white;font-weight:800;width:30px;height:30px;text-align:center;line-height:30px}.step p{margin:0}footer{text-align:center;color:#6b8091;font-size:13px;padding:24px}@media(max-width:760px){.wrap{display:block}nav{position:static;margin-bottom:20px;display:flex;flex-wrap:wrap}nav a{padding:6px}section{padding:19px}.grid{grid-template-columns:1fr}header{padding:35px 22px}} .diagram{width:100%;background:#f5faff;border:1px solid var(--line);border-radius:12px;padding:15px;margin:18px 0}.diagram svg{width:100%}.diagram text{font-family:system-ui,sans-serif}.section-intro{color:var(--muted)}.toc-title{font-size:13px;color:var(--muted)}.check{background:#eafaf6;border-left:4px solid #008d85;padding:14px;border-radius:8px}pre{white-space:pre;overflow-x:auto} .note{font-size:13px;color:var(--muted)}</style></head><body><header><div class="eyebrow">Dell FleetOps · Operations Knowledge Wiki</div><h1>Docker Engine Deployment Runbook</h1><p>Step-by-step CentOS deployment, hard-earned gotchas, and recovery commands — without Docker Compose.</p><span class="pill">CentOS</span><span class="pill">Docker CLI</span><span class="pill">Dell iDRAC</span><span class="pill">Redfish</span></header><div class="wrap"><nav aria-label="On this page"><strong>On this page</strong><a href="#intro">Overview and diagram</a><a href="#section-1">1. Architecture and prerequisites</a><a href="#section-2">2. Preflight checks</a><a href="#section-3">3. Obtain source and confirm actual location</a><a href="#section-4">4. Configure secrets and simulation mode</a><a href="#section-5">5. Create Docker network and persistent storage</a><a href="#section-6">6. Build images — Docker CLI only</a><a href="#section-7">7. Start backend and frontend</a><a href="#section-8">8. Correct Nginx config — confirmed fix for HTTP 500</a><a href="#section-9">9. Verify and open the application</a><a href="#section-10">10. Troubleshooting matrix</a><a href="#section-11">11. Safe updates and rollback</a><a href="#section-12">12. Backups and recovery</a><a href="#section-13">13. Production hardening checklist</a><a href="#section-14">14. Quick diagnostic bundle</a></nav><main><section id="intro"><h1>Dell-iDRAC-Manager — CentOS Docker Engine Deployment Runbook</h1>
+<p><strong>Version:</strong> 1.0<br />
+<strong>Updated:</strong> October 2026<br />
+<strong>Repository:</strong> https://github.com/cbonilla81/Dell-iDRAC-Manager<br />
+<strong>Deployment method:</strong> Docker CLI only — no Docker Compose<br />
+<strong>Example source directory:</strong> <code>/home/bonillac/githubrepo/Dell-iDRAC-Manager</code></p>
+<blockquote>
+<p><strong>Scope and assumptions:</strong> This runbook documents the deployment we troubleshot, not a guarantee that future repository revisions retain the same Dockerfiles, ports, environment variables, or API routes. Review the checked-out <code>frontend/Dockerfile</code>, <code>backend/Dockerfile</code>, <code>frontend/nginx.conf</code>, <code>.env.example</code>, and application documentation before deploying. Replace example addresses and paths with yours. Never commit secrets.</p>
+</blockquote>
+<div class="diagram"><svg viewBox="0 0 760 240" role="img" aria-label="Docker frontend proxies API calls to backend, which stores data in persistent volume and connects to iDRAC"><rect x="12" y="50" width="168" height="72" rx="12" fill="#e7f3ff" stroke="#0875c9" stroke-width="2"/><text x="96" y="78" text-anchor="middle" font-size="17" font-weight="700" fill="#173b57">Browser</text><text x="96" y="101" text-anchor="middle" font-size="13" fill="#46667d">TCP 8080</text><path d="M180 86H225" stroke="#61829c" stroke-width="2"/><rect x="225" y="50" width="145" height="72" rx="12" fill="#e7faf6" stroke="#008d85" stroke-width="2"/><text x="297" y="78" text-anchor="middle" font-size="16" font-weight="700" fill="#173b57">Nginx + React</text><text x="297" y="101" text-anchor="middle" font-size="13" fill="#46667d">frontend</text><path d="M370 86H415" stroke="#61829c" stroke-width="2"/><rect x="415" y="50" width="145" height="72" rx="12" fill="#e7f3ff" stroke="#0875c9" stroke-width="2"/><text x="487" y="78" text-anchor="middle" font-size="16" font-weight="700" fill="#173b57">FastAPI</text><text x="487" y="101" text-anchor="middle" font-size="13" fill="#46667d">backend:8000</text><path d="M560 86H608" stroke="#61829c" stroke-width="2"/><rect x="608" y="50" width="140" height="72" rx="12" fill="#fff7e7" stroke="#d78a00" stroke-width="2"/><text x="678" y="78" text-anchor="middle" font-size="16" font-weight="700" fill="#173b57">Dell iDRAC</text><text x="678" y="101" text-anchor="middle" font-size="13" fill="#46667d">HTTPS 443</text><path d="M487 122V159" stroke="#61829c" stroke-width="2"/><rect x="400" y="160" width="174" height="56" rx="12" fill="#f3f5fa" stroke="#a5bdcf"/><text x="487" y="183" text-anchor="middle" font-size="15" font-weight="700" fill="#173b57">idrac_data</text><text x="487" y="201" text-anchor="middle" font-size="12" fill="#46667d">Persistent volume</text></svg></div></section><section id="section-1"><h2>1. Architecture and prerequisites</h2>
+<ul>
+<li>CentOS Stream with supported Docker Engine, <code>git</code>, <code>curl</code>, <code>openssl</code>, and administrative privileges.</li>
+<li>Two images/containers: React/Vite frontend served by Nginx on container TCP 80; Python/FastAPI backend on container TCP 8000 (verify current repository).</li>
+<li>Dedicated user-defined Docker bridge network <code>idrac-network</code>; backend DNS alias <code>backend</code> for Nginx API proxy.</li>
+<li>Named volume <code>idrac_data</code> mounted at <code>/app/data</code> to retain the backend database and application data.</li>
+<li>Frontend published as <code>8080:80</code>; backend port 8000 is not published to the host.</li>
+<li>Network access to image registries and dependency repositories during builds; outbound HTTPS from backend to managed iDRACs when live mode is enabled.</li>
+<li>Keep the dashboard on an authorized management network or VPN. HTTP 8080 is for controlled lab access; add HTTPS and authentication before production use.</li>
+</ul>
+</section><section id="section-2"><h2>2. Preflight checks</h2>
+<pre><code class="language-bash">cat /etc/os-release
+uname -m
+pwd
+sudo docker version
+sudo systemctl is-active docker
+sudo firewall-cmd --state || true
+getenforce 2&gt;/dev/null || true
+</code></pre>
+<p>If Docker is not installed on a supported CentOS Stream release:</p>
+<pre><code class="language-bash">sudo dnf install -y dnf-plugins-core git curl openssl
+sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+sudo dnf install -y docker-ce docker-ce-cli containerd.io
+sudo systemctl enable --now docker
+sudo docker run --rm hello-world
+</code></pre>
+<p><strong>Gotcha:</strong> CentOS Linux 7/8 are end-of-life. Do not assume current Docker packages work there; migrate to a supported OS. A <code>sudo docker</code> command avoids Docker socket permission issues without adding users to the effectively root-equivalent <code>docker</code> group.</p>
+</section><section id="section-3"><h2>3. Obtain source and confirm actual location</h2>
+<pre><code class="language-bash">mkdir -p ~/githubrepo
+cd ~/githubrepo
+git clone https://github.com/cbonilla81/Dell-iDRAC-Manager.git
+cd Dell-iDRAC-Manager
+pwd
+ls -la
+ls -la frontend backend
+cat frontend/Dockerfile
+cat frontend/nginx.conf
+</code></pre>
+<p>For the deployment documented here, the actual source root was:</p>
+<pre><code class="language-text">/home/bonillac/githubrepo/Dell-iDRAC-Manager
+</code></pre>
+<p><strong>Gotcha:</strong> Do not assume <code>/opt/Dell-iDRAC-Manager</code>. If you cannot find the files:</p>
+<pre><code class="language-bash">sudo find /home /opt /root -type f -path '*/frontend/Dockerfile' 2&gt;/dev/null
+</code></pre>
+</section><section id="section-4"><h2>4. Configure secrets and simulation mode</h2>
+<p>Inspect <code>.env.example</code> and the backend application to confirm the exact supported variable names before proceeding.</p>
+<pre><code class="language-bash">cd /home/bonillac/githubrepo/Dell-iDRAC-Manager
+cp -n .env.example .env
+openssl rand -hex 48
+sudo vi .env
+sudo chmod 600 .env
+</code></pre>
+<p>Example settings used during troubleshooting (verify against the current repository):</p>
+<pre><code class="language-dotenv">SECRET_KEY=REPLACE_WITH_GENERATED_SECRET
+SIMULATION_MODE=true
+VERIFY_TLS=false
+REQUIRE_MAINTENANCE_WINDOW=false
+</code></pre>
+<p><strong>Security gotchas:</strong> Prefer <code>VERIFY_TLS=true</code> for real iDRACs with valid certificates; disabling iDRAC TLS verification is not a general solution to npm's TLS errors. Start with <code>SIMULATION_MODE=true</code> and validate behavior before any live management actions. Store the <code>SECRET_KEY</code> in a secure backup: changing it may make encrypted stored credentials unreadable. Avoid printing or committing <code>.env</code>.</p>
+</section><section id="section-5"><h2>5. Create Docker network and persistent storage</h2>
+<pre><code class="language-bash">sudo docker network inspect idrac-network &gt;/dev/null 2&gt;&amp;1 || sudo docker network create idrac-network
+sudo docker volume inspect idrac_data &gt;/dev/null 2&gt;&amp;1 || sudo docker volume create idrac_data
+sudo docker network inspect idrac-network
+sudo docker volume inspect idrac_data
+</code></pre>
+<p><strong>Gotcha:</strong> Do not run <code>docker volume rm idrac_data</code> during upgrades or troubleshooting. This volume may hold your database and encrypted credentials.</p>
+</section><section id="section-6"><h2>6. Build images — Docker CLI only</h2>
+<pre><code class="language-bash">cd /home/bonillac/githubrepo/Dell-iDRAC-Manager
+sudo docker build -t idrac-backend:0.2 ./backend
+sudo docker build -t idrac-frontend:0.2 ./frontend
+sudo docker image ls
+</code></pre>
+<p>Confirm the frontend Dockerfile performs the Node build and copies the actual Vite output to Nginx's web root. For a standard Vite build, the final stage typically includes:</p>
+<pre><code class="language-dockerfile">COPY --from=build /app/dist/ /usr/share/nginx/html/
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+</code></pre>
+<p>The source stage name and output path must match your actual Dockerfile/Vite configuration.</p>
+<h3>npm TLS failure: UNABLE_TO_GET_ISSUER_CERT_LOCALLY</h3>
+<p>Typical failure:</p>
+<pre><code class="language-text">npm error code UNABLE_TO_GET_ISSUER_CERT_LOCALLY
+request to https://registry.npmjs.org/@vitejs%2fplugin-react failed
+</code></pre>
+<p>Check host TLS and DNS first:</p>
+<pre><code class="language-bash">curl -Iv https://registry.npmjs.org/
+getent ahostsv4 registry.npmjs.org
+echo | openssl s_client -connect registry.npmjs.org:443 -servername registry.npmjs.org 2&gt;&amp;1 | grep -E 'subject=|issuer=|Verify return code'
+</code></pre>
+<p>In the troubleshooting session, DNS returned <code>146.112.49.0</code>, associated with Cisco Umbrella/OpenDNS infrastructure. That is a clue to inspect DNS security or filtering, <strong>not proof</strong> of SSL inspection. If the registry is blocked by policy, a CA certificate alone will not fix the block.</p>
+<p><strong>Preferred solutions:</strong> (1) obtain and install your organization's approved CA chain into the CentOS trust store and the Node build image; (2) use an approved internal npm registry; or (3) build on another trusted machine and transfer the image. Do not permanently set <code>strict-ssl=false</code> or <code>NODE_TLS_REJECT_UNAUTHORIZED=0</code> for production builds.</p>
+<p>If building elsewhere on the same CPU architecture:</p>
+<pre><code class="language-bash"># On trusted build machine:
+docker build -t idrac-frontend:0.2 ./frontend
+docker save -o idrac-frontend.tar idrac-frontend:0.2
+scp idrac-frontend.tar USER@CENTOS_HOST:/tmp/
+# On CentOS VM:
+sudo docker load -i /tmp/idrac-frontend.tar
+</code></pre>
+<p>Verify architecture compatibility with <code>uname -m</code> on both systems. The build machine must have permission to access the dependencies; do not circumvent organizational security controls.</p>
+</section><section id="section-7"><h2>7. Start backend and frontend</h2>
+<pre><code class="language-bash">cd /home/bonillac/githubrepo/Dell-iDRAC-Manager
+sudo docker run -d \
+  --name idrac-backend \
+  --hostname backend \
+  --network idrac-network \
+  --network-alias backend \
+  --restart unless-stopped \
+  --env-file .env \
+  --mount source=idrac_data,target=/app/data \
+  idrac-backend:0.2
+
+sudo docker run -d \
+  --name idrac-frontend \
+  --network idrac-network \
+  --restart unless-stopped \
+  -p 8080:80 \
+  --mount type=bind,src=/home/bonillac/githubrepo/Dell-iDRAC-Manager/frontend/nginx.conf,dst=/etc/nginx/conf.d/default.conf,readonly \
+  idrac-frontend:0.2
+</code></pre>
+<p><strong>Why bind-mount nginx.conf?</strong> It keeps the corrected Nginx configuration persistent across frontend container replacement, even if the image still contains an older configuration. On SELinux-enforcing CentOS, a bind mount can be denied due to labeling. For a single-file mount, first try the <code>-v /absolute/path/nginx.conf:/etc/nginx/conf.d/default.conf:ro,Z</code> syntax instead of <code>--mount</code> (Docker's <code>:Z</code> labeling option applies to <code>-v</code> bind mounts). This may relabel the source file; for a safer long-term deployment, bake the configuration into a rebuilt image. Never label arbitrary system directories.</p>
+<p>If you already have an existing frontend container, don't run a second container with the same name. See the replacement procedure below.</p>
+</section><section id="section-8"><h2>8. Correct Nginx config — confirmed fix for HTTP 500</h2>
+<p>The working frontend image contained <code>/usr/share/nginx/html/index.html</code> and <code>assets/</code>, yet requests to <code>/</code> returned 500 with:</p>
+<pre><code class="language-text">rewrite or internal redirection cycle while internally redirecting to &quot;/index.html&quot;
+</code></pre>
+<p>The active configuration lacked an explicit document root. Use this Nginx configuration, preserving the backend proxy:</p>
+<pre><code class="language-nginx">server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location /api/ {
+        proxy_pass http://backend:8000/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+</code></pre>
+<p>To edit a root-owned file without <code>-bash: nginx.conf: Permission denied</code>:</p>
+<pre><code class="language-bash">cd /home/bonillac/githubrepo/Dell-iDRAC-Manager/frontend
+sudo cp nginx.conf nginx.conf.bak
+sudo tee nginx.conf &gt;/dev/null &lt;&lt;'EOF'
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+    location /api/ {
+        proxy_pass http://backend:8000/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    location / { try_files $uri $uri/ /index.html; }
+}
+EOF
+</code></pre>
+<p>For an already-running container <strong>without</strong> the bind mount, apply without rebuilding:</p>
+<pre><code class="language-bash">sudo docker cp nginx.conf idrac-frontend:/etc/nginx/conf.d/default.conf
+sudo docker exec idrac-frontend nginx -t
+sudo docker exec idrac-frontend nginx -s reload
+curl -I http://localhost:8080/
+</code></pre>
+<p><strong>Gotcha:</strong> <code>docker cp</code> is a temporary container modification. Recreating the container loses it. Persist the fix via the corrected Dockerfile/image or a read-only bind mount.</p>
+</section><section id="section-9"><h2>9. Verify and open the application</h2>
+<pre><code class="language-bash">sudo docker ps -a
+sudo docker logs --tail 100 idrac-frontend
+sudo docker logs --tail 100 idrac-backend
+sudo docker exec idrac-frontend ls -lah /usr/share/nginx/html/
+sudo docker exec idrac-frontend nginx -t
+curl -I http://localhost:8080/
+curl -i http://localhost:8080/api/servers
+</code></pre>
+<p>Expected frontend: HTTP 200 and <code>index.html</code> plus <code>assets/</code> present. The <code>/api/servers</code> endpoint should return an appropriate API response if that route exists in the checked-out revision; 404 may indicate a route mismatch, not necessarily a failed backend.</p>
+<p>Open <code>http://CENTOS_VM_IP:8080</code> from a permitted management workstation. If firewalld is active, allow 8080 only from trusted networks (use a rich rule or zone/source restriction rather than broadly exposing the port).</p>
+</section><section id="section-10"><h2>10. Troubleshooting matrix</h2>
+<p>| Symptom | Diagnose | Resolution |
+|---|---|---|
+| <code>cd: ... No such file or directory</code> | <code>pwd</code>; <code>find /home /opt /root -path '*/frontend/Dockerfile'</code> | Use the actual checkout path. |
+| <code>nginx.conf: Permission denied</code> | <code>ls -l frontend/nginx.conf</code> | <code>sudo tee</code> to write; <code>sudo cp</code> for backups. |
+| HTTP 500, Nginx redirect cycle | <code>docker logs idrac-frontend</code>; <code>nginx -T</code>; <code>ls /usr/share/nginx/html</code> | Set <code>root</code> and <code>index</code>, confirm build files exist, test/reload Nginx. |
+| Missing <code>index.html</code> | Inspect frontend Dockerfile, build logs, Vite output | Fix <code>COPY --from=build</code> source and rebuild. |
+| HTTP 502 on <code>/api/</code> | <code>docker ps</code>; <code>docker network inspect</code>; backend logs | Ensure backend runs on same network and resolves as <code>backend:8000</code>. |
+| npm issuer certificate failure | <code>curl -Iv</code>, <code>openssl s_client</code>, DNS checks | Correct CA trust or use approved mirror/trusted build machine. |
+| <code>port is already allocated</code> | <code>sudo ss -lntp | grep :8080</code>; <code>docker ps</code> | Stop conflicting service or choose another published host port. |
+| Backend database error | <code>docker logs idrac-backend</code>; inspect volume mount | Check permissions and DB state; do not delete volume. |
+| Docker SELinux bind mount denial | <code>getenforce</code>; <code>sudo ausearch -m avc -ts recent</code> | Use appropriate <code>:Z</code> on a dedicated config file or bake config into image. |
+| UI works, iDRAC fails | Check <code>SIMULATION_MODE</code>, network route, iDRAC TCP 443, credentials | Test authorized Redfish endpoint; enable real mode only after validation. |</p>
+</section><section id="section-11"><h2>11. Safe updates and rollback</h2>
+<p>Before changes, record the currently running images and preserve your source configuration:</p>
+<pre><code class="language-bash">sudo docker inspect idrac-frontend --format '{{.Config.Image}}'
+sudo docker inspect idrac-backend --format '{{.Config.Image}}'
+sudo docker image ls
+sudo docker volume inspect idrac_data
+</code></pre>
+<p>Build new <strong>versioned</strong> images (e.g. <code>idrac-frontend:0.3</code>), test build success, then stop/remove <strong>only</strong> the frontend container and start the new image with the same network, port and read-only Nginx bind mount. For rollback, recreate the frontend with the previous image tag. Do not remove the backend or volume to resolve frontend issues.</p>
+</section><section id="section-12"><h2>12. Backups and recovery</h2>
+<p>For a consistent backup, temporarily stop backend writes:</p>
+<pre><code class="language-bash">sudo mkdir -p /opt/idrac-backups
+sudo docker stop idrac-backend
+sudo docker run --rm \
+  -v idrac_data:/data:ro \
+  -v /opt/idrac-backups:/backup \
+  alpine tar czf /backup/idrac_data_backup.tar.gz -C /data .
+sudo docker start idrac-backend
+</code></pre>
+<p>Back up <code>.env</code> separately to an access-controlled secret store; preserve the original <code>SECRET_KEY</code>. Test restores on a nonproduction VM. Do not overwrite an active production volume. A restore into a <strong>new</strong> volume can be staged using an Alpine container, then verified before cutover.</p>
+</section><section id="section-13"><h2>13. Production hardening checklist</h2>
+<ul>
+<li>[ ] Supported CentOS release and patched Docker Engine.</li>
+<li>[ ] Source revision/tag documented; images built from known dependency versions.</li>
+<li>[ ] Verified CA trust; no permanent npm TLS bypass.</li>
+<li>[ ] Nginx serves React files and proxies API correctly.</li>
+<li>[ ] HTTPS termination and authentication/SSO in front of dashboard.</li>
+<li>[ ] Port 8080 restricted to trusted management network/VPN.</li>
+<li>[ ] Backend port 8000 not exposed publicly.</li>
+<li>[ ] <code>SECRET_KEY</code> secured and backed up; <code>.env</code> excluded from Git.</li>
+<li>[ ] iDRAC accounts least privilege; validate TLS for production iDRAC connections.</li>
+<li>[ ] Simulation mode tested before enabling real operations.</li>
+<li>[ ] Firmware updates gated by approvals, maintenance windows and tested recovery plans.</li>
+<li>[ ] Named volume backed up and restore tested.</li>
+<li>[ ] Container restart policies and log retention reviewed.</li>
+</ul>
+</section><section id="section-14"><h2>14. Quick diagnostic bundle</h2>
+<pre><code class="language-bash">pwd
+sudo docker ps -a
+sudo docker network inspect idrac-network
+sudo docker inspect idrac-frontend --format '{{.Config.Image}}'
+sudo docker exec idrac-frontend nginx -T 2&gt;&amp;1 | grep -E 'root |index |proxy_pass'
+sudo docker exec idrac-frontend ls -lah /usr/share/nginx/html/
+sudo docker logs --tail 100 idrac-frontend
+sudo docker logs --tail 100 idrac-backend
+curl -I http://localhost:8080/
+curl -i http://localhost:8080/api/servers
+</code></pre>
+<p><strong>Privacy:</strong> Sanitize log output, internal IPs, tokens, passwords, and other secrets before sharing diagnostics.</p>
+</section><section><h2>Related documentation</h2><p><a href="Dell_FleetOps_Redfish_Wiki.html">Redfish Knowledge Wiki</a> · <a href="Dell_FleetOps_Firmware_Intelligence_Wiki.html">Firmware Intelligence Wiki</a> · <a href="https://github.com/cbonilla81/Dell-iDRAC-Manager">Project repository</a></p><p class="note">Commands and feature availability should be checked against the deployed repository version. Never use example firmware versions or package URLs for production changes.</p></section></main></div><footer>FleetOps operations documentation · Standalone HTML · No external scripts</footer></body></html>
